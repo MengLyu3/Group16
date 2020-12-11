@@ -1,0 +1,131 @@
+---
+title: "Medical_insurance for group 16"
+author: 'Meng Lyu, Dongxu Lyu, Chuhan Wang:'
+date: "11/12/2020"
+output: html_document
+---
+
+```{r} 
+# libraries load
+
+library(dplyr) 
+library(ggplot2) 
+library(plotly) 
+library(gganimate)
+
+```
+
+
+```{r}
+# Import data set
+
+insurance <- read.csv("C:/Users/KRIS/Desktop/insurance.csv")
+
+```
+
+
+Top 5 lower and top 5 higest and unique, mean, all percentile show,n, missing also
+```{r}
+# Check missing value
+library(Hmisc)
+describe(insurance)
+```
+
+```{r}
+summary(insurance)
+```
+
+## Medical Costs and children covered by health insurance
+
+```{r}
+insurance %>%
+    group_by(children) %>%
+    summarise(median = median(charges), mean = mean(charges),total = n()) %>%
+    arrange(desc(median)) 
+
+ggplot(insurance, aes(x = as.factor(children), y = charges, color = as.factor(children))) +
+  geom_boxplot() +
+  labs(title = "Medical Costs By Number Of Children",
+      x = "No. of Children") +
+    theme(plot.title = element_text(hjust = 0.5),
+          legend.position = "none")
+```
+
+##Scatter plot for our dataset 
+```{r warning = FALSE}
+insurance %>%
+  plot_ly(x = ~bmi, y = ~charges, color = ~smoker, size = ~children, frame = ~age,
+          type = 'scatter', mode = 'markers', showlegend = T)
+```
+
+## Distribution of Medical Costs for Smokers for Each Gender
+
+```{r}
+library(hrbrthemes)
+library(wesanderson)
+ggplot(insurance, aes(charges))+
+  geom_density(aes(fill = smoker), color = NA, alpha = 0.6) +
+  facet_wrap(~sex)+
+  theme_ipsum_rc()+
+  theme(legend.position = "top")+
+  scale_x_continuous(labels = scales::unit_format(suffix = "$"))+
+  scale_fill_manual(values = wes_palette("Moonrise2"))+
+  labs(title = "Distribution of Medical Costs for Smokers for Each Gender")
+```
+
+##using Train and test splitting to fit model
+```{r}
+library(rsample)
+set.seed(123)
+partition <- initial_split(insurance, prop = 0.8, strata = "charges")
+
+train <- training(partition)
+test <- testing(partition)
+```
+
+##construct  Multiple Linear Regression
+```{r}
+
+model<-lm(formula = charges ~ . - children - charges, data = train)
+summary(model)
+```
+
+```{r}
+plot(model)
+```
+
+## Stepwise our model
+```{r}
+
+model_sp <- stats::step(lm(charges ~., data = train), direction = "backward", trace = 0)
+summary(model_sp)
+```
+
+## Check performance of our model
+
+```{r}
+library(yardstick)
+select(test, charges) %>%
+  mutate(
+    pred_lm = predict(model_sp, test)
+  ) %>% 
+  summarise(
+    mae = mae_vec(truth = charges, estimate = pred_lm),
+    rsq = rsq_vec(truth = charges, estimate = pred_lm),
+  )
+```
+
+```{r}
+plot(model_sp)
+```
+
+```{r}
+hist(resid(model_sp), col = "steelblue", main = "Histogram of Residuals", xlab = "Residual")
+```
+
+```{r}
+# Multicollinearity check
+car::vif(model_sp)
+```
+
+
